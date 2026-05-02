@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>심슨 배구</title>
+    <style>
+        :root {
+            --aspect-ratio: calc(432 / 304);
+            --inverse-aspect-ratio: calc(304 / 432);
+            --canvas-width: 96vmin;
+            --canvas-height: calc(96vmin * var(--inverse-aspect-ratio));
+            --font-size: 18px;
+            --btn-width: min(calc(6 * var(--font-size)), calc((var(--canvas-width) - 30px) / 4));
+            --btn-height: calc(3 * var(--font-size));
+            
+            --background-color: #ffffff;
+            --color: #232629;
+            --btn-color: #ffffff;
+            --btn-background-color: rgba(50, 50, 50, 1);
+            --btn-hover-background-color: rgba(100, 100, 100, 0.9);
+        }
+
+        @media only screen and (min-aspect-ratio: 432/304) {
+            :root {
+                --canvas-height: calc(96vh - var(--btn-height) - 10px);
+                --canvas-width: calc(var(--canvas-height) * var(--aspect-ratio));
+            }
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, Helvetica, sans-serif;
+            user-select: none;
+        }
+
+        #flex-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            width: var(--canvas-width);
+            margin-top: 8px;
+        }
+
+        #menu-bar {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            width: var(--canvas-width);
+            height: var(--btn-height);
+            margin-bottom: 10px;
+        }
+
+        .btn-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .btn {
+            display: inline-block;
+            width: var(--btn-width);
+            height: var(--btn-height);
+            border: none;
+            border-radius: 10px;
+            padding: 0;
+            color: var(--btn-color);
+            background-color: var(--btn-background-color);
+            font-size: var(--font-size);
+            text-align: center;
+            margin-right: 5px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        select.btn {
+            appearance: none;
+            text-align-last: center;
+        }
+
+        .btn:hover { 
+            background-color: var(--btn-hover-background-color); 
+        }
+
+        #game-canvas-container {
+            position: relative;
+        }
+
+        #game-canvas {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            width: var(--canvas-width);
+            height: var(--canvas-height);
+            image-rendering: pixelated; 
+            border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+        }
+    </style>
+</head>
+<body>
+    <div id="flex-container">
+        <div id="menu-bar">
+            <div class="btn-container left">
+                <select id="mode-select" class="btn" style="width: calc(var(--btn-width) * 1.5);">
+                    <option value="ai">1P vs AI</option>
+                    <option value="2p">1P vs 2P</option>
+                </select>
+                <button class="btn" id="btn-restart">사용법</button>
+            </div>
+            <div class="btn-container right">
+                <div style="font-weight: bold; font-size: var(--font-size); color: #0074cc;">Simpson Volleyball</div>
+            </div>
+        </div>
+        
+        <div id="game-canvas-container">
+            <canvas id="game-canvas" width="432" height="304"></canvas>
+        </div>
+    </div>
+
+    <script src="rand.js"></script>
+    <script src="physics.js"></script>
+    <script src="keyboard.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

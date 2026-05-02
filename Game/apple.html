@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>사과 게임</title>
+    <style>
+        #tblGameGrid {
+            cursor: default;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .appleCell {
+            position: relative;
+            display: inline-block;
+            font-size: 24pt;
+            font-family: 'Arial';
+            width: 28pt;
+            height: 28pt;
+            padding: 2pt;
+        }
+
+        .appleCellNum {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -40%);
+            color: white;
+            font-size: 16pt;
+            font-weight: 800;
+            text-shadow: 0 2px 4px #000;
+            pointer-events: none;
+            font-family: 'Arial';
+        }
+
+        .drag-select {
+            background-color: rgba(20, 137, 189, 0.5);
+        }
+
+        .intersected>.appleCellNum {
+            color: yellow;
+        }
+
+        .controlbox {
+            display: flex;
+            align-items: center;
+        }
+
+        #score {
+            color: #3CB371;
+        }
+
+        #container {
+            display: none;
+            border: 30px solid #3CB371;
+            border-radius: 10px;
+            padding: 30px 15px;
+
+            background-color: #E0FEE0;
+        }
+
+        #gameStartContainer {
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            width: 729px;
+            height: 467px;
+            border: 30px solid #3CB371;
+            border-radius: 10px;
+            padding: 30px 15px;
+
+            background-color: #E0FEE0;
+        }
+
+        #gameEndContainer {
+            display: none;
+            align-items: center;
+            flex-direction: column;
+            width: 729px;
+            height: 467px;
+            border: 30px solid #3CB371;
+            border-radius: 10px;
+            padding: 30px 15px;
+
+            background-color: #E0FEE0;
+        }
+
+        #finaltime {
+            color: red;
+            font-size: 26pt;
+            font-weight: 600;
+        }
+
+        #btnReplay {
+            cursor: pointer;
+            display: inline-block;
+            font-size: 16pt;
+            font-weight: 700;
+            color: white;
+            background-color: green;
+            padding: 10pt 5pt;
+            margin-top: 16px
+        }
+
+        .appleCont {
+            position: relative;
+            display: inline-block;
+            font-size: 96pt;
+            font-family: 'Arial';
+            width: 110pt;
+            height: 110pt;
+
+            cursor: pointer;
+        }
+
+        .appleText {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -30%);
+            color: white;
+            font-size: 26pt;
+            font-weight: 800;
+            text-shadow: 0 2px 4px #000;
+            pointer-events: none;
+            font-family: 'Arial';
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .startTitle {
+            color: #EC5800;
+            font-size: 48pt;
+            font-weight: 800;
+        }
+
+        #control_ingame {
+            display: flex;
+            width: 100%;
+            align-items: center;
+        }
+
+        #prgsBar {
+            width: 100%;
+            background-color: #eee;
+            border: 1px solid #aaa;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+
+        #bar {
+            width: 100%;
+            height: 10px;
+            background-color: #3CB371;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>사과 게임</h2>
+    <hr>
+    <div id="gameStartContainer">
+        <div class="startTitle">사과 게임</div>
+        <div id="btnNewGame" class="appleCont">
+            🍎
+            <div id="btnNewGameText" class="appleText">시작!</div>
+        </div>
+    </div>
+    <div id="gameEndContainer">
+        <div class="appleCont">
+            🍎
+            <div class="appleText" id="finalscore"></div>
+        </div>
+        <div id="finaltime"></div>
+        <div id="btnReplay">다시 하기</div>
+    </div>
+    <div id="container">
+        <div class="controlbox">
+            <div id="control_ingame">
+                <div id="prgsBar">
+                    <div id="bar"></div>
+                </div>
+                <span id="score">0</span>
+            </div>
+        </div>
+        <table id="tblGameGrid"></table>
+    </div>
+
+
+    <script>
+        let gamePlaying = false
+
+        let tblGameGrid = document.getElementById("tblGameGrid")
+        let btnNewGame = document.getElementById("btnNewGame")
+        let btnReplay = document.getElementById("btnReplay")
+        let spanScore = document.getElementById("score")
+        let spanTime = document.getElementById("time")
+
+        let prgsBar = document.getElementById("prgsBar")
+        let bar = document.getElementById("bar")
+
+        let gameStartContainer = document.getElementById("gameStartContainer")
+        let gameEndContainer = document.getElementById("gameEndContainer")
+        let container = document.getElementById("container")
+
+        let finalscore = document.getElementById("finalscore")
+
+        let cellObjects = []
+        let cellNumbers = []
+        let score = 0
+        const timeLimit = 120
+        let timeLeft = 0
+        let cntTimeID = null
+
+        const cellR = 10; const cellC = 17;
+
+        function cntTime(e) {
+            timeLeft--;
+            bar.style.width = `${timeLeft / timeLimit * 100}%`
+            if (timeLeft === 0) {
+                clearGame()
+            }
+        }
+
+        function newGame() {
+            gamePlaying = true
+            score = 0
+            spanScore.innerText = "0"
+            timeLeft = timeLimit
+            gameStartContainer.style.display = "none"
+            gameEndContainer.style.display = "none"
+            container.style.display = "inline-block"
+            cntTimeID = setInterval(cntTime, 1000)
+
+            tblGameGrid.innerHTML = ""
+            cellObjects = []
+            cellNumbers = []
+            for (let i = 0; i < cellR; i++) {
+                const r = []
+                const nr = []
+                const tr = tblGameGrid.insertRow()
+                for (let j = 0; j < cellC; j++) {
+                    const td = tr.insertCell()
+                    const rnd = Math.floor(Math.random() * 9 + 1)
+                    td.classList.add("appleCell")
+                    td.appendChild(document.createTextNode("🍎"))
+
+                    const tdNum = td.appendChild(document.createElement("span"))
+                    tdNum.appendChild(document.createTextNode(rnd))
+                    tdNum.classList.add("appleCellNum")
+
+                    r.push(td)
+                    nr.push(rnd)
+                }
+                cellObjects.push(r)
+                cellNumbers.push(nr)
+            }
+        }
+
+        function clearGame() {
+            clearInterval(cntTimeID)
+            cntTiemID = null
+            gamePlaying = false
+
+            container.style.display = "none"
+            gameEndContainer.style.display = "flex"
+
+            finalscore.innerHTML = `Score<br>${score}`
+
+            if (score === cellR * cellC) {
+                document.getElementById("finaltime").innerHTML = `Time: ${timeLimit - timeLeft}s`
+            }
+
+            let selectDiv = document.getElementById("div")
+            if (selectDiv !== null) selectDiv.remove()
+        }
+
+        btnNewGame.onclick = (event) => {
+            //Initialise new game
+            newGame()
+        }
+
+        btnReplay.onclick = (event) => {
+            //Initialise new game
+            newGame()
+        }
+
+        function evaluateAppleSelection() {
+            let S = 0
+            for (let i = 0; i < cellR; i++) {
+                for (let j = 0; j < cellC; j++) {
+                    if (cellObjects[i][j] === null) continue
+                    if (cellObjects[i][j].classList.contains("intersected")) {
+                        S += cellNumbers[i][j]
+                    }
+                }
+            }
+            if (S === 10) {
+                for (let i = 0; i < cellR; i++) {
+                    for (let j = 0; j < cellC; j++) {
+                        if (cellObjects[i][j] === null) continue
+                        if (cellObjects[i][j].classList.contains("intersected")) {
+                            cellObjects[i][j].innerHTML = ""
+                            cellObjects[i][j] = null
+                            cellNumbers[i][j] = null
+                            score++
+                        }
+                    }
+                }
+            }
+            spanScore.innerText = score
+            if (score === 170) {
+                clearGame()
+            }
+        }
+
+        // for selecting
+
+        function checkRectIntersection(r1, r2) {    // stackoverflow.com/a/13390495
+            return !(r1.x + r1.width < r2.x ||
+                r2.x + r2.width < r1.x ||
+                r1.y + r1.height < r2.y ||
+                r2.y + r2.height < r1.y);
+        }
+
+
+        function checkSelected(selectAreaElem) {
+            const select = selectAreaElem.getBoundingClientRect();
+            const { x, y, height, width } = select;
+            for (let i = 0; i < cellR; i++) {
+                for (let j = 0; j < cellC; j++) {
+                    if (cellObjects[i][j] === null) continue
+                    if (checkRectIntersection({ x: x + window.scrollX, y: y + window.scrollY, height, width },
+                        cellObjects[i][j].getBoundingClientRect())) {
+                        cellObjects[i][j].classList.add("intersected")
+                    } else {
+                        cellObjects[i][j].classList.remove("intersected")
+                    }
+                }
+            }
+        }
+
+        //https://stackoverflow.com/questions/75900305/drag-select-on-javascript-make-elements-selectable
+        addEventListener("pointerdown", createSelectAreaDiv)
+        async function createSelectAreaDiv(event) { // stackoverflow.com/a/75902998
+            event.preventDefault()
+            const x = event.pageX
+            const y = event.pageY
+
+            const tblRect = tblGameGrid.getBoundingClientRect()
+            if (x < tblRect.left || tblRect.right < x || y < tblRect.top || tblRect.bottom < y) return
+            if (!gamePlaying) return
+
+            const div = document.createElement("div")
+            div.style.position = "absolute"
+            div.style.width = "0"
+            div.style.height = "0"
+            div.style.left = x + "px"
+            div.style.top = y + "px"
+            div.classList.add("drag-select")
+            document.body.append(div)
+
+            function resize(event) {
+                const tblRect = tblGameGrid.getBoundingClientRect()
+                if (event.pageX < tblRect.left || tblRect.right < event.pageX || event.pageY < tblRect.top || tblRect.bottom < event.pageY) return
+
+                const diffX = event.pageX - x
+                const diffY = event.pageY - y
+                div.style.left = diffX < 0 ? x + diffX + "px" : x + "px"
+                div.style.top = diffY < 0 ? y + diffY + "px" : y + "px"
+                div.style.height = Math.abs(diffY) + "px"
+                div.style.width = Math.abs(diffX) + "px"
+                checkSelected(div); // extra line 1
+            }
+            addEventListener("pointermove", resize)
+            addEventListener("pointerup", () => {
+                removeEventListener("pointermove", resize)
+                if (!gamePlaying) return
+
+                evaluateAppleSelection()
+
+                for (let i = 0; i < cellR; i++) {
+                    for (let j = 0; j < cellC; j++) {
+                        if (cellObjects[i][j] === null) continue
+                        cellObjects[i][j].classList.remove("intersected")
+                    }
+                }
+                div.remove()
+            });
+        }
+    </script>
+</body>
+
+</html>

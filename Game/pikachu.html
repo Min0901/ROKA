@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset='utf-8'>
+    <title>피카피카???</title>
+    <style>
+        wrapper {
+            display: inline-block;
+            position: relative;
+        }
+
+        wrapperOverlay {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+
+            background-color: black;
+            opacity: 0%;
+        }
+    </style>
+    <script>
+        const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+        class Ball {
+            r = 52
+            immunity = 0
+            immuneBy = 0
+            constructor(_xX, _xY, _vX, _vY, _aX, _aY) {
+                this.xX = _xX; this.xY = _xY; this.vX = _vX; this.vY = _vY; this.aX = _aX; this.aY = _aY
+            }
+
+            nextFrame() {
+                this.xX += this.vX
+                this.xY += this.vY
+                this.vX += this.aX
+                this.vY += this.aY
+
+                //damping
+                this.vX *= 0.9995
+                this.vY *= 0.9995
+
+                if (this.immunity > 0) this.immunity--
+            }
+        }
+
+        class Pika {
+            width = 75
+            height = 130
+
+            leftPressed = false
+            rightPressed = false
+            zPressed = false
+            downPressed = false
+            upPressed = false
+
+            isJumping = false
+            isMiniJumping = false
+            minijumpLeftFrames = 0
+            dir = 1
+            vY = 0
+            aY = 0.2
+
+            vX = 3
+
+            constructor(_x, _y, _floor, _at, _minX, _maxX) {
+                this.x = _x; this.y = _y;
+                this.floor = _floor // height of canvas
+                if (this.y + this.height > this.floor) this.y = this.floor - this.height
+                this.at = _at //0 for left, 1 for right
+                this.dir = _at === 0 ? 1 : -1
+                this.minX = _minX
+                this.maxX = _maxX
+            }
+            left() {
+                if (this.x - this.vX < this.minX) return
+                this.x -= this.vX
+            }
+            right() {
+                if (this.x + this.vX + this.width > this.maxX) return
+                this.x += this.vX
+            }
+
+            processJump() {
+                if (this.y + this.height + this.vY >= this.floor) {
+                    this.y = this.floor - this.height
+                    this.vY = 0
+                    this.isJumping = false
+                    if (this.isMiniJumping) {
+                        this.isMiniJumping = false
+                        this.minijumpLeftFrames = 30
+                    }
+                    return
+                }
+                this.y += this.vY
+                this.vY += this.aY
+                if (this.isMiniJumping)
+                {
+                    if (this.dir === -1) {
+                        if (this.x - 1.5 * this.vX < this.minX) return
+                        this.x -= 1.5 * this.vX
+                    }
+                    else {
+                        if (this.x + 1.5 * this.vX + this.width > this.maxX) return
+                        this.x += 1.5 * this.vX
+                    }
+                }
+            }
+
+            initiateJump() {
+                if (this.isJumping) return false //cannot jump twice...
+                // Launch the player
+                this.vY = -10.5
+                this.isJumping = true
+                return true
+            }
+
+            initiateMiniJump(_dir) {
+                // diving
+                this.vY = -5
+                this.isJumping = true
+                this.isMiniJumping = true
+                this.dir = _dir
+                this.liedown()
+                return true
+            }
+
+            nextFrame() {
+                if (!this.isMiniJumping) {
+                    if (this.leftPressed) this.left()
+                    if (this.rightPressed) this.right()
+                }
+                if (this.minijumpLeftFrames > 0) this.minijumpLeftFrames -= 1
+                if (!this.isMiniJumping && this.minijumpLeftFrames == 0) this.upright()
+                if (this.isJumping) this.processJump()
+            }
+
+            upright() {
+                this.width = 75
+                this.height = 130
+                this.y = Math.min(this.y, this.floor - this.height)
+            }
+            
+            liedown() {
+                this.width = 130
+                this.height = 75
+            }
+        }
+
+        class Volleyball {
+            framerate = 10 //time between each frame
+            framewidth = 1024
+            frameheight = 668
+            pikas = []
+            isAnimating = false
+            pressStart = true
+            isPaused = false
+            isPausedTextShown = false
+
+            constructor(_canvas) {
+                this.canvas = _canvas
+                this.canvas.width = this.framewidth
+                this.canvas.height = this.frameheight
+                this.leftScore = 0
+                this.rightScore = 0
+            }
+
+            async animate() {
+
+                let ctx = this.canvas.getContext('2d')
+
+                if (this.isPaused === true) {
+                    if (!this.isPausedTextShown) {
+                        ctx.font = 'bold 32px "Segoe UI"'
+                        ctx.fillStyle = "white"
+                        ctx.fillText('계속하려면 <Space>키를 누르시오', 300, 350)
+                        this.isPausedTextShown = true
+                    }
+                    return
+                }
+
+                ctx.clearRect(0, 0, this.framewidth, this.frameheight)
+
+                // sky
+                const sky = ctx.createLinearGradient(0, 0, 0, this.frameheight)
+                sky.addColorStop(0, '#3a73ff')
+                sky.addColorStop(1, '#69d7ff')
+                ctx.fillStyle = sky
+                ctx.fillRect(0, 0, this.framewidth, this.frameheight)
+                ctx.save()
+                ctx.globalAlpha = .08
+                ctx.fillStyle = '#fff'
+                ctx.beginPath()
+                ctx.arc(this.framewidth * 0.1, this.frameheight * 0.12, this.frameheight * 0.3, 0, Math.PI * 2)
+                ctx.fill()
+                ctx.restore()
+
+                // score
+                ctx.font = 'bold 100px "Segoe UI"'
+                ctx.fillStyle = "white"
+                ctx.fillText(this.leftScore, 60, 120) //pika1
+                ctx.fillText(this.rightScore, 900, 120)
+
+                // render ball
+                ctx.beginPath()
+                ctx.arc(this.ball.xX, this.ball.xY, this.ball.r, 0, Math.PI)
+                ctx.fillStyle = '#FFFFFF'
+                ctx.fill()
+                ctx.closePath()
+                ctx.beginPath()
+                ctx.arc(this.ball.xX, this.ball.xY, this.ball.r, Math.PI, 2 * Math.PI)
+                ctx.fillStyle = '#FF0000'
+                ctx.fill()
+                ctx.closePath()
+                ctx.beginPath()
+                ctx.moveTo(this.ball.xX - this.ball.r, this.ball.xY)
+                ctx.lineTo(this.ball.xX + this.ball.r, this.ball.xY)
+                ctx.lineWidth = this.ball.r / 8
+                ctx.stroke()
+                ctx.closePath()
+                ctx.beginPath()
+                ctx.arc(this.ball.xX, this.ball.xY, this.ball.r / 3, 0, 2 * Math.PI)
+                ctx.fillStyle = '#FFFFFF'
+                ctx.fill()
+                ctx.lineWidth = this.ball.r / 8
+                ctx.stroke()
+                ctx.closePath()
+
+                // divider
+                ctx.beginPath()
+                const barX = this.framewidth / 2 - 10
+                const barY = this.frameheight - 250
+                const barW = 20
+                const barH = 250
+                ctx.rect(barX, barY, barW, barH)
+                const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0)
+                grad.addColorStop(0, "#d3b27f")
+                grad.addColorStop(1, "#966f33")
+                ctx.fillStyle = grad
+                ctx.fill()
+                ctx.closePath()
+
+                // render pika1
+                ctx.beginPath()
+                ctx.rect(this.pikas[0].x, this.pikas[0].y, this.pikas[0].width, this.pikas[0].height)
+                ctx.fillStyle = '#00FF00'
+                ctx.fill()
+                ctx.closePath()
+
+                // render pika2
+                ctx.beginPath()
+                ctx.rect(this.pikas[1].x, this.pikas[1].y, this.pikas[1].width, this.pikas[1].height)
+                ctx.fillStyle = '#FF00FF'
+                ctx.fill()
+                ctx.closePath()
+
+                // ball-wall
+                if (this.ball.xY + this.ball.vY < 0) this.ball.vY *= -1
+                if (this.ball.xX + this.ball.vX > this.framewidth) this.ball.vX *= -1
+                if (this.ball.xX + this.ball.vX < 0) this.ball.vX *= -1
+                if (this.ball.xY + this.ball.vY > this.frameheight) {
+                    /* FLOOR, CHANGE TURNS */
+                    this.ball.vY *= -1
+                    if (this.ball.xY + this.ball.vY > this.frameheight) this.ball.xY = this.frameheight - 1
+                    if (this.isAnimating) {
+                        let midpoint = this.ball.xX + this.ball.r / 2
+                        let nextPlayer
+                        if (midpoint > this.framewidth / 2) {
+                            this.leftScore++
+                            nextPlayer = 0
+                        } else {
+                            this.rightScore++
+                            nextPlayer = 1
+                        }
+
+                        if (this.leftScore === 15 || this.rightScore === 15) {
+                            this.animate()
+                            ctx.font = 'bold 50px "Segoe UI"'
+                            ctx.fillStyle = "white"
+                            ctx.fillText('GAME SET!', 350, 350)
+                            this.stopround()
+                            return
+                        }
+
+                        this.stopround()
+
+                        for (let i = 0; i < 10; i++) {
+                            // slow motion
+                            await sleep(100)
+                            for (let j = 0; j < 2; j++) this.animate()
+                        }
+
+                        this.setup(nextPlayer)
+                        this.startround()
+                    }
+
+                }
+
+                if (this.ball.xY + this.ball.r + this.ball.vY >= barY) {
+                    if (this.ball.xX + this.ball.r < barX && this.ball.xX + this.ball.r + this.ball.vX >= barX ||
+                        this.ball.xX - this.ball.r > barX + barW && this.ball.xX - this.ball.r + this.ball.vX <= barX + barW) {
+                        this.ball.vX *= -1
+                    }
+                    if (this.ball.xX + this.ball.r + this.ball.vX > barX && this.ball.xX - this.ball.r + this.ball.vX <= barX + barW) {
+                        this.ball.vY *= -1
+                    }
+                }
+
+
+                for (let pika of this.pikas) {
+                    // ball-pika
+                    if (this.ball.immunity > 0) continue
+
+                    // boost???
+                    if (pika.zPressed && !pika.isJumping && pika.minijumpLeftFrames === 0) {
+                        if (pika.rightPressed) {
+                            pika.initiateMiniJump(1)
+                        }
+                        else if (pika.leftPressed) {
+                            pika.initiateMiniJump(-1)
+                        }
+                    }
+
+                    if (this.ball.xX + this.ball.r > pika.x && pika.x + pika.width > this.ball.xX - this.ball.r) {
+                        // ball comes *in the middle of* pika
+                        if (this.ball.xY + this.ball.r + this.ball.vY >= pika.y && this.ball.xY - this.ball.r + this.ball.vY < pika.y + pika.height) {
+                            this.ball.xY -= this.ball.vY //undo one move (prevents tunneling)
+
+                            // determine vX
+                            const maxVX = 8
+                            let hitPercentage = (this.ball.xX - pika.x) / pika.width //0 (left) to 1 (right)
+                            let newvX = hitPercentage * maxVX - maxVX / 2
+                            if (Math.abs(newvX) < 0.5) {
+                                do {
+                                    newvX = Math.random() * maxVX - maxVX / 2
+                                } while (Math.abs(newvX) >= 0.5)
+                            }
+                            //if (pika.at == 1) newvX *= -1
+                            this.ball.vX = newvX
+
+                            this.ball.vY = -Math.sqrt(11*11-newvX*newvX)
+
+                            if (pika.isJumping&& pika.downPressed && pika.zPressed) {
+                                this.ball.vX += pika.dir * 4
+                                this.ball.vY = 15
+                                this.ball.immunity = 50
+                                this.ball.immuneBy = pika
+                            }
+                            if (pika.isJumping) {
+                                this.ball.vX += pika.vX * 0.2
+                                this.ball.vY += pika.vY * 0.2
+                            }
+
+                            if (pika.zPressed) {
+                                if (pika.upPressed)
+                                {
+                                    this.ball.vY = -10 //Z+Up
+                                    this.ball.vX = pika.dir * 4
+                                }
+                                if (pika.isJumping) {
+                                    if (pika.leftPressed || pika.rightPressed) { //Z+LeftRight
+                                        this.ball.vX = pika.dir * 12
+                                        this.ball.vY = 0
+                                        if (pika.upPressed) {
+                                            //Z+LeftRight+Up
+                                            this.ball.vX /= Math.sqrt(2)
+                                            this.ball.vY = -Math.abs(this.ball.vX)
+                                        }
+                                    }
+                                }
+
+                                else {
+                                    this.ball.vX *= 0.6
+                                    this.ball.vY *= 0.6
+                                }
+                            }
+                            if (this.ball.immunity == 0) {
+                                this.ball.immunity = 5 //default immunity
+                                this.ball.immuneBy = pika
+                            }
+
+                        }
+                        else if (Math.abs((pika.y + pika.height) - (this.ball.xY - this.ball.r)) < this.ball.vY) {
+                            // bottom. do we really need this?
+                            this.ball.vY = Math.abs(this.ball.vY)
+                        }
+                    }
+                    pika.nextFrame()
+                }
+                this.ball.nextFrame()
+
+                if (this.pressStart) {
+                    ctx.font = 'bold 32px "Segoe UI"'
+                    ctx.fillStyle = "white"
+                    ctx.fillText('시작하려면 <Space>키를 누르시오', 300, 350)
+                }
+            }
+
+            setup(first) {
+                let ballX = first === 0 ? 120 : 900
+                this.ball = new Ball(ballX, 0, 0, 0, 0, 0.1)
+                this.pikas = [new Pika(50, 100000, this.frameheight, 0, 0, this.framewidth / 2 - 10),
+                new Pika(900, 100000, this.frameheight, 1, this.framewidth / 2 + 10, this.framewidth)
+                ]
+                game.animate()
+            }
+            startround() {
+                this.animationID = setInterval(this.animate.bind(this), this.framerate)
+                this.isAnimating = true
+                this.pressStart = false
+            }
+
+            stopround() {
+                clearInterval(this.animationID)
+                this.isAnimating = false
+            }
+        }
+
+        var game;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            game = new Volleyball(document.getElementById('game'))
+            game.setup(0)
+            document.addEventListener('keydown', onKeyDown)
+            document.addEventListener('keyup', onKeyUp)
+        })
+
+        let onKeyDown = (e) => {
+            if (e.key === ' ') {
+                if (game.pressStart) game.startround()
+                else {
+                    game.isPaused = !game.isPaused
+                    game.isPausedTextShown = false
+                }
+            }
+            if (!game.isAnimating) return
+            if (e.key === 'd') game.pikas[0].leftPressed = true
+            else if (e.key === 'g') game.pikas[0].rightPressed = true
+            else if (e.key === 'z') game.pikas[0].zPressed = true
+            else if (e.key === 'f') game.pikas[0].downPressed = true
+
+            if (e.key === 'Right' || e.key === 'ArrowRight') {
+                game.pikas[1].rightPressed = true
+            } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
+                game.pikas[1].leftPressed = true
+            } else if (e.key === 'Down' || e.key === 'ArrowDown') {
+                game.pikas[1].downPressed = true
+            }
+
+            if (e.key === 'Enter') {
+                game.pikas[1].zPressed = true
+            }
+            if (e.key === 'r') {
+                game.pikas[0].upPressed = true
+                game.pikas[0].initiateJump()
+            }
+            if (e.key === 'Up' || e.key === 'ArrowUp') {
+                game.pikas[1].initiateJump()
+                game.pikas[1].upPressed = true
+            }
+        }
+        let onKeyUp = (e) => {
+            if (!game.isAnimating) return
+            if (e.key === 'd') game.pikas[0].leftPressed = false
+            else if (e.key === 'g') game.pikas[0].rightPressed = false
+            else if (e.key === 'z') game.pikas[0].zPressed = false
+            else if (e.key === 'f') game.pikas[0].downPressed = false
+            else if (e.key === 'r') game.pikas[0].upPressed = false
+
+            if (e.key === 'Right' || e.key === 'ArrowRight') {
+                game.pikas[1].rightPressed = false
+            } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
+                game.pikas[1].leftPressed = false
+            } else if (e.key === 'Enter') {
+                game.pikas[1].zPressed = false
+            } else if (e.key === 'Down' || e.key === 'ArrowDown') {
+                game.pikas[1].downPressed = false
+            } else if (e.key === 'Up' || e.key === 'ArrowUp') {
+                game.pikas[1].upPressed = false
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <h1>피카츄 배구???</h1>
+    <div class='controlbox'>
+        <details>
+            <summary>조작방법</summary>
+            <h5>조작키</h5>
+            <p>1P: D(좌), G(우), R(점프), F(하), Z(Z) / 2P: 좌우, 상(점프), Enter(Z)</p>
+            <h5>조작방법</h5>
+            <p>좌우 키를 이용하여 캐릭터를 이동하며, 점프 키를 이용하여 점프한다. </p>
+            <h5>기술</h5>
+            <ul>
+                <li>점프를 한 채로 공을 치면 공이 빨라진다.</li>
+                <li>'Z'+'윗'키를 누르고 공을 치면 공이 높이 뜬다.</li>
+                <li>'Z'키를 누르고 공을 치면 공이 느리게 날아간다.</li>
+                <li>'Z'+좌/우키를 누르면 피카츄가 다이빙을 한다. 단, 점프 중에는 스매시를 한다.</li>
+                <li>'Z'+'아래' 키를 누르면 공이 밑으로 날아간다.</li>
+            </ul>
+            <h5>게임 정지</h5>
+            <p>게임을 정지하거나 재개하려면 [Space]키를 누르면 된다.</p>
+        </details>
+    </div>
+    <hr>
+    <div id="wrapper">
+        <canvas id='game'>
+
+        </canvas>
+        <div
+            style="width: 1024px; height: 100px; margin-top: -10px; background: linear-gradient(to bottom, #F8D084, #E7B868);">
+        </div>
+    </div>
+</body>
+
+</html>
