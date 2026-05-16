@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>컬러 블록 블라스트 - 폭발 이펙트</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', AppleSDGothicNeo, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #ffffff;
+            color: #333333;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        h1 { margin-bottom: 5px; font-weight: 800; letter-spacing: -1px; color: #222; }
+        p.guide { color: #666; margin-top: 0; margin-bottom: 20px; font-size: 15px; }
+        
+        #score-container {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            background-color: #f8f9fa;
+            padding: 15px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .score-box { display: flex; flex-direction: column; align-items: center; }
+        .score-label { font-size: 14px; color: #888; font-weight: bold; margin-bottom: 5px; }
+        .score-value { font-size: 28px; font-weight: bold; color: #333; }
+        #best-score-value { color: #FF9500; }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 45px);
+            grid-template-rows: repeat(8, 45px);
+            grid-gap: 2px;
+            background-color: #e0e0e0;
+            padding: 4px; 
+            border-radius: 8px;
+            cursor: pointer; 
+        }
+
+        .cell {
+            width: 45px;
+            height: 45px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            box-sizing: border-box;
+            transition: background-color 0.05s, opacity 0.05s;
+            pointer-events: none; 
+            position: relative;
+        }
+
+        /* ✨ 새로 추가된 블록 폭발 애니메이션 ✨ */
+        @keyframes blastEffect {
+            0% { transform: scale(1); opacity: 1; }
+            40% { transform: scale(1.2); background-color: #ffffff; opacity: 1; box-shadow: 0 0 15px #ffffff; border-radius: 8px; z-index: 10; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+        .cell.blast {
+            animation: blastEffect 0.3s ease-out forwards;
+            z-index: 10;
+        }
+
+        #shapes-container {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            margin-top: 40px;
+            min-height: 120px;
+            width: 100%;
+        }
+
+        .shape-wrapper {
+            display: grid;
+            grid-gap: 2px;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: transform 0.2s, background-color 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .shape-wrapper:hover { transform: scale(1.05); background-color: #f9f9f9; }
+        .shape-wrapper.selected {
+            transform: scale(1.15);
+            background-color: #f0f0f0;
+            border-color: #ccc;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .shape-cell {
+            width: 25px;
+            height: 25px;
+            background-color: transparent;
+            border-radius: 4px;
+        }
+
+        #game-over {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+        #game-over h2 { color: #ff3b30; margin-top: 0; }
+        #game-over button {
+            background-color: #007AFF; color: white; border: none;
+            padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold;
+            margin-top: 15px;
+        }
+        #game-over button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+    <h1>Block Blast</h1>
+    <p class="guide">블록을 채워서 시원하게 터뜨려보세요!</p>
+    
+    <div id="score-container">
+        <div class="score-box">
+            <span class="score-label">SCORE</span>
+            <span class="score-value" id="score">0</span>
+        </div>
+        <div class="score-box">
+            <span class="score-label">BEST</span>
+            <span class="score-value" id="best-score-value">0</span>
+        </div>
+    </div>
+    
+    <div id="board"></div>
+    <div id="shapes-container"></div>
+
+    <div id="game-over">
+        <h2>Game Over!</h2>
+        <p>최종 점수: <span id="final-score">0</span></p>
+        <button onclick="location.reload()">다시 시작</button>
+    </div>
+
+    <script>
+        const BOARD_SIZE = 8;
+        let boardArray = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null));
+        
+        let score = 0;
+        let bestScore = localStorage.getItem('blockBlastBestScore') || 0;
+        document.getElementById('best-score-value').innerText = bestScore;
+
+        let currentShapes = []; 
+        let selectedShapeIndex = -1; 
+        
+        // 애니메이션 진행 중 클릭 방지용 변수
+        let isAnimating = false;
+
+        const SHAPE_TEMPLATES = [
+            [[1]], 
+            [[1,1],[1,1]], 
+            [[1,1,1]], 
+            [[1],[1],[1]], 
+            [[1,1,1,1]], 
+            [[1],[1],[1],[1]], 
+            [[1,1,1,1,1]], 
+            [[1],[1],[1],[1],[1]], 
+            [[1,1],[1,0]], 
+            [[1,1],[0,1]], 
+            [[1,1,1],[1,0,0],[1,0,0]], 
+            [[1,1,1],[0,0,1],[0,0,1]], 
+            [[1,1,1],[0,1,0]], 
+            [[1,1,1],[1,1,1],[1,1,1]]  
+        ];
+
+        const COLORS = ['#FF3B30', '#FF9500', '#FFCC00', '#4CD964', '#5AC8FA', '#007AFF', '#5856D6', '#FF2D55'];
+
+        const boardEl = document.getElementById('board');
+
+        function initBoard() {
+            boardEl.innerHTML = '';
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${r}-${c}`;
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function renderBoard() {
+            // 애니메이션 중에는 화면 강제 렌더링(깜빡임) 방지
+            if (isAnimating) return; 
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const cell = document.getElementById(`cell-${r}-${c}`);
+                    if (boardArray[r][c]) {
+                        cell.style.backgroundColor = boardArray[r][c];
+                        cell.style.opacity = '1';
+                    } else {
+                        cell.style.backgroundColor = ''; 
+                        cell.style.opacity = '1';
+                    }
+                }
+            }
+        }
+
+        function generateNewShapes() {
+            currentShapes = [];
+            const container = document.getElementById('shapes-container');
+            container.innerHTML = '';
+            selectedShapeIndex = -1;
+
+            for (let i = 0; i < 3; i++) {
+                const matrix = SHAPE_TEMPLATES[Math.floor(Math.random() * SHAPE_TEMPLATES.length)];
+                const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+                
+                currentShapes.push({ matrix, color });
+                createShapeUI(matrix, color, i, container);
+            }
+            checkGameOver();
+        }
+
+        function createShapeUI(matrix, color, index, container) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'shape-wrapper';
+            wrapper.id = `shape-${index}`;
+            
+            wrapper.style.gridTemplateColumns = `repeat(${matrix[0].length}, 25px)`;
+            wrapper.style.gridTemplateRows = `repeat(${matrix.length}, 25px)`;
+
+            wrapper.onclick = () => {
+                if (isAnimating) return; // 터지는 중엔 블록 선택 불가
+                if (!currentShapes[index]) return;
+                selectedShapeIndex = selectedShapeIndex === index ? -1 : index;
+                updateShapeSelection();
+            };
+
+            for (let r = 0; r < matrix.length; r++) {
+                for (let c = 0; c < matrix[r].length; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'shape-cell';
+                    if (matrix[r][c]) cell.style.backgroundColor = color;
+                    wrapper.appendChild(cell);
+                }
+            }
+            container.appendChild(wrapper);
+        }
+
+        function updateShapeSelection() {
+            for (let i = 0; i < 3; i++) {
+                const el = document.getElementById(`shape-${i}`);
+                if (el) {
+                    if (i === selectedShapeIndex) el.classList.add('selected');
+                    else el.classList.remove('selected');
+                }
+            }
+        }
+
+        function getSmartPlacementCoords(matrix, mouseR, mouseC) {
+            const shapeHeight = matrix.length;
+            const shapeWidth = matrix[0].length;
+            let baseR = mouseR - Math.floor(shapeHeight / 2);
+            let baseC = mouseC - Math.floor(shapeWidth / 2);
+            
+            baseR = Math.max(0, Math.min(baseR, BOARD_SIZE - shapeHeight));
+            baseC = Math.max(0, Math.min(baseC, BOARD_SIZE - shapeWidth));
+            
+            if (canPlaceShape(matrix, baseR, baseC)) return { startR: baseR, startC: baseC };
+
+            const MAX_RADIUS = 2;
+            let bestR = -1; let bestC = -1; let minDistance = Infinity;
+
+            for (let rOffset = -MAX_RADIUS; rOffset <= MAX_RADIUS; rOffset++) {
+                for (let cOffset = -MAX_RADIUS; cOffset <= MAX_RADIUS; cOffset++) {
+                    const testR = baseR + rOffset;
+                    const testC = baseC + cOffset;
+                    if (canPlaceShape(matrix, testR, testC)) {
+                        const dist = Math.sqrt(Math.pow(rOffset, 2) + Math.pow(cOffset, 2));
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            bestR = testR; bestC = testC;
+                        }
+                    }
+                }
+            }
+
+            if (bestR !== -1) return { startR: bestR, startC: bestC };
+            return { startR: baseR, startC: baseC };
+        }
+
+        function canPlaceShape(matrix, startR, startC) {
+            for (let r = 0; r < matrix.length; r++) {
+                for (let c = 0; c < matrix[r].length; c++) {
+                    if (matrix[r][c]) {
+                        const boardR = startR + r;
+                        const boardC = startC + c;
+                        if (boardR < 0 || boardR >= BOARD_SIZE || boardC < 0 || boardC >= BOARD_SIZE || boardArray[boardR][boardC] !== null) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function getGridCoords(e) {
+            const rect = boardEl.getBoundingClientRect();
+            const x = e.clientX - rect.left - 4; 
+            const y = e.clientY - rect.top - 4;
+            let c = Math.floor(x / 47);
+            let r = Math.floor(y / 47);
+            c = Math.max(0, Math.min(c, BOARD_SIZE - 1));
+            r = Math.max(0, Math.min(r, BOARD_SIZE - 1));
+            return { r, c };
+        }
+
+        boardEl.addEventListener('mousemove', (e) => {
+            if (isAnimating) return; // 폭발 중에는 프리뷰 계산 중지
+
+            const coords = getGridCoords(e);
+            renderBoard();
+
+            if (selectedShapeIndex === -1 || !currentShapes[selectedShapeIndex]) return;
+            
+            const shapeObj = currentShapes[selectedShapeIndex];
+            const { startR, startC } = getSmartPlacementCoords(shapeObj.matrix, coords.r, coords.c);
+
+            if (canPlaceShape(shapeObj.matrix, startR, startC)) {
+                for (let r = 0; r < shapeObj.matrix.length; r++) {
+                    for (let c = 0; c < shapeObj.matrix[r].length; c++) {
+                        if (shapeObj.matrix[r][c]) {
+                            const boardR = startR + r;
+                            const boardC = startC + c;
+                            const cell = document.getElementById(`cell-${boardR}-${boardC}`);
+                            if (cell) {
+                                cell.style.backgroundColor = shapeObj.color;
+                                cell.style.opacity = '0.5';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        boardEl.addEventListener('mouseleave', () => {
+            if (!isAnimating) renderBoard(); 
+        });
+
+        boardEl.addEventListener('click', (e) => {
+            if (isAnimating || selectedShapeIndex === -1 || !currentShapes[selectedShapeIndex]) return;
+
+            const coords = getGridCoords(e);
+            const shapeObj = currentShapes[selectedShapeIndex];
+            const { startR, startC } = getSmartPlacementCoords(shapeObj.matrix, coords.r, coords.c);
+
+            if (canPlaceShape(shapeObj.matrix, startR, startC)) {
+                let placedBlocksCount = 0;
+
+                for (let r = 0; r < shapeObj.matrix.length; r++) {
+                    for (let c = 0; c < shapeObj.matrix[r].length; c++) {
+                        if (shapeObj.matrix[r][c]) {
+                            boardArray[startR + r][startC + c] = shapeObj.color;
+                            placedBlocksCount++;
+                        }
+                    }
+                }
+
+                addScore(placedBlocksCount * 10);
+
+                currentShapes[selectedShapeIndex] = null;
+                document.getElementById(`shape-${selectedShapeIndex}`).style.visibility = 'hidden';
+                selectedShapeIndex = -1;
+                updateShapeSelection();
+
+                renderBoard(); // 방금 놓은 블록 진하게 표시
+
+                // 줄 폭발 체크 (애니메이션이 발생했는지 여부 반환)
+                const didClearLines = checkAndClearLines();
+
+                // 줄이 안 터졌을 때만 바로 다음 상태 체크 (터졌다면 setTimeout 안에서 체크)
+                if (!didClearLines) {
+                    if (currentShapes.every(s => s === null)) {
+                        generateNewShapes();
+                    } else {
+                        checkGameOver();
+                    }
+                }
+            }
+        });
+
+        // 💥 폭발 애니메이션을 포함한 줄 지우기 로직
+        function checkAndClearLines() {
+            let rowsToClear = [];
+            let colsToClear = [];
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                if (boardArray[r].every(cell => cell !== null)) rowsToClear.push(r);
+            }
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                let isFull = true;
+                for (let r = 0; r < BOARD_SIZE; r++) {
+                    if (boardArray[r][c] === null) { isFull = false; break; }
+                }
+                if (isFull) colsToClear.push(c);
+            }
+
+            let linesCleared = rowsToClear.length + colsToClear.length;
+
+            if (linesCleared > 0) {
+                isAnimating = true; // 터지는 동안 조작 금지 설정
+
+                // 1. 터질 셀들의 ID를 수집 (가로/세로 교차점 중복 방지를 위해 Set 사용)
+                let cellsToAnimate = new Set();
+                rowsToClear.forEach(r => {
+                    for (let c = 0; c < BOARD_SIZE; c++) cellsToAnimate.add(`${r}-${c}`);
+                });
+                colsToClear.forEach(c => {
+                    for (let r = 0; r < BOARD_SIZE; r++) cellsToAnimate.add(`${r}-${c}`);
+                });
+
+                // 2. 해당 셀들에 'blast' 클래스 추가하여 CSS 애니메이션 실행
+                cellsToAnimate.forEach(id => {
+                    const cellEl = document.getElementById(`cell-${id}`);
+                    if (cellEl) cellEl.classList.add('blast');
+                });
+
+                // 점수 추가
+                addScore(linesCleared * 100 * linesCleared); 
+
+                // 3. 0.3초 뒤 (애니메이션이 끝난 후) 데이터 비우고 원상복구
+                setTimeout(() => {
+                    rowsToClear.forEach(r => {
+                        for (let c = 0; c < BOARD_SIZE; c++) boardArray[r][c] = null;
+                    });
+                    colsToClear.forEach(c => {
+                        for (let r = 0; r < BOARD_SIZE; r++) boardArray[r][c] = null;
+                    });
+
+                    cellsToAnimate.forEach(id => {
+                        const cellEl = document.getElementById(`cell-${id}`);
+                        if (cellEl) cellEl.classList.remove('blast');
+                    });
+
+                    isAnimating = false; // 조작 금지 해제
+                    renderBoard(); // 지워진 빈 화면 업데이트
+
+                    // 남은 블록 체크 (폭발이 다 끝난 시점에서 확인해야 안전함)
+                    if (currentShapes.every(s => s === null)) {
+                        generateNewShapes();
+                    } else {
+                        checkGameOver();
+                    }
+                }, 300); // 0.3초 대기
+
+                return true; // 선이 지워졌음
+            }
+            return false; // 안 지워졌음
+        }
+
+        function addScore(points) {
+            score += points;
+            document.getElementById('score').innerText = score;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('blockBlastBestScore', bestScore);
+                document.getElementById('best-score-value').innerText = bestScore;
+            }
+        }
+
+        function checkGameOver() {
+            let canPlay = false;
+
+            for (let i = 0; i < currentShapes.length; i++) {
+                const shapeObj = currentShapes[i];
+                if (!shapeObj) continue;
+
+                for (let r = 0; r < BOARD_SIZE; r++) {
+                    for (let c = 0; c < BOARD_SIZE; c++) {
+                        if (canPlaceShape(shapeObj.matrix, r, c)) {
+                            canPlay = true;
+                            break;
+                        }
+                    }
+                    if (canPlay) break;
+                }
+                if (canPlay) break;
+            }
+
+            if (!canPlay && !currentShapes.every(s => s === null)) {
+                document.getElementById('final-score').innerText = score;
+                document.getElementById('game-over').style.display = 'block';
+                document.getElementById('shapes-container').style.opacity = '0.3';
+                document.getElementById('shapes-container').style.pointerEvents = 'none';
+            }
+        }
+
+        initBoard();
+        generateNewShapes();
+
+    </script>
+</body>
+</html>
