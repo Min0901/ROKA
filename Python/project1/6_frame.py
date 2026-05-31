@@ -40,9 +40,9 @@ player = pygame.Surface((70,70))
 player.fill((128,128,128))
 player_size = player.get_rect().size
 player_width = player_size[0]
-player_heigth = player_size[1]
+player_height = player_size[1]
 player_x_pos = screen_width / 2 - player_width / 2
-player_y_pos = screen_height - player_heigth
+player_y_pos = screen_height - player_height
 
 # 플레이어 이동할 좌표
 to_x = 0
