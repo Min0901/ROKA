@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>노노그램 - 네모로직 퍼즐</title>
+<style>
+  :root{
+    --bg:#f4f5f7;
+    --panel:#ffffff;
+    --text:#1a1a1a;
+    --sub-text:#8b93a1;
+    --border:rgba(0,0,0,.45);
+    --border-strong:#000000;
+    --hint-bg:#ffffff;
+    --cell-empty:#ffffff;
+    --cell-fill:#000000;
+    --cell-mark-bg:#ffffff;
+    --cell-mark-x:#d61f1f;
+    --accent:#4f6df5;
+    --accent-soft:#eceff2;
+    --danger:#e2513f;
+    --danger-soft:#fdeceA;
+    --hint-done:#b9bec7;
+    --shadow:0 1px 2px rgba(20,22,30,.04), 0 8px 24px rgba(20,22,30,.06);
+    --radius:10px;
+    --cell-size:32px;
+  }
+  [data-theme="dark"]{
+    --bg:#171a20;
+    --panel:#20242c;
+    --text:#e7e9ee;
+    --sub-text:#7d8494;
+    --border:#3a3f4a;
+    --border-strong:#c7cbd3;
+    --hint-bg:#262b34;
+    --cell-empty:#20242c;
+    --cell-fill:#e7e9ee;
+    --cell-mark-bg:#20242c;
+    --cell-mark-x:#5b6272;
+    --accent:#7c93ff;
+    --accent-soft:#2a3550;
+    --danger:#ff6b57;
+    --danger-soft:#3a2426;
+    --hint-done:#4a5162;
+    --shadow:0 1px 2px rgba(0,0,0,.2), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:24px 16px 60px;
+    transition:background .2s ease, color .2s ease;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+
+  .app{ width:100%; max-width:900px; }
+
+  /* ---------- header ---------- */
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:12px;
+    margin-bottom:18px;
+  }
+  h1{
+    font-size:20px;
+    font-weight:700;
+    margin:0;
+    letter-spacing:-.2px;
+  }
+  h1 span{ color:var(--accent); }
+
+  .icon-btn{
+    width:38px;height:38px;
+    border-radius:50%;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--text);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    font-size:16px;
+    box-shadow:var(--shadow);
+  }
+  .icon-btn:hover{ border-color:var(--border-strong); }
+
+  /* ---------- status bar ---------- */
+  .status-bar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:12px 18px;
+    margin-bottom:16px;
+    box-shadow:var(--shadow);
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .status-item{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    min-width:70px;
+  }
+  .status-item .label{ font-size:11px; color:var(--sub-text); text-transform:uppercase; letter-spacing:.04em;}
+  .status-item .value{ font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
+
+  .progress-track{
+    flex:1;
+    min-width:120px;
+    height:8px;
+    background:var(--border);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    width:0%;
+    background:var(--accent);
+    border-radius:4px;
+    transition:width .25s ease;
+  }
+
+  /* ---------- controls ---------- */
+  .controls{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .size-select{
+    display:flex;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  .size-select button{
+    border:none;
+    background:transparent;
+    color:var(--sub-text);
+    padding:9px 16px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .size-select button.active{
+    background:var(--accent);
+    color:#fff;
+  }
+
+  .action-buttons{ display:flex; gap:8px; flex-wrap:wrap; }
+  .btn{
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--text);
+    padding:9px 16px;
+    border-radius:8px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    box-shadow:var(--shadow);
+  }
+  .btn:hover{ border-color:var(--border-strong); }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.danger-outline{ color:var(--danger); }
+
+  /* ---------- board wrapper ---------- */
+  .board-wrapper{
+    background:var(--panel);
+    border-radius:4px;
+    border:1px solid #c7c9cd;
+    box-shadow:none;
+    padding:22px;
+    display:flex;
+    justify-content:center;
+    overflow-x:auto;
+  }
+
+  #board-grid{
+    display:grid;
+    border-top:2px solid var(--border-strong);
+    border-left:2px solid var(--border-strong);
+    border-right:2px solid var(--border-strong);
+    border-bottom:2px solid var(--border-strong);
+  }
+
+  .corner{
+    background:var(--hint-bg);
+    border-right:2px solid var(--border-strong);
+    border-bottom:2px solid var(--border-strong);
+  }
+
+  .col-hint, .row-hint{
+    background:var(--hint-bg);
+    color:var(--text);
+    font-size:12px;
+    font-weight:700;
+    font-variant-numeric:tabular-nums;
+    line-height:1;
+  }
+  .col-hint span, .row-hint span{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    line-height:1;
+  }
+  .col-hint{
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end;
+    align-items:center;
+    line-height:1.2;
+    padding-bottom:5px;
+    border-bottom:2px solid var(--border-strong);
+    border-right:1px solid var(--border);
+  }
+  .col-hint span{ display:block; }
+  .row-hint{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:5px;
+    padding-right:9px;
+    border-right:2px solid var(--border-strong);
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+
+  .col-hint.done, .row-hint.done{ color:var(--hint-done); }
+  .row-hint.done span, .col-hint.done span{ text-decoration:line-through; text-decoration-thickness:1.5px; }
+
+  .cell{
+    background:var(--cell-empty);
+    border-right:1px solid var(--border);
+    border-bottom:1px solid var(--border);
+    cursor:pointer;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:background .05s ease;
+  }
+  .cell.thick-right{ border-right:2px solid var(--border-strong); }
+  .cell.thick-bottom{ border-bottom:2px solid var(--border-strong); }
+  .col-hint.thick-right{ border-right:2px solid var(--border-strong); }
+  .row-hint.thick-bottom{ border-bottom:2px solid var(--border-strong); }
+
+  .cell.filled{ background:var(--cell-empty); }
+  .cell.filled::after{
+    content:"";
+    position:absolute;
+    inset:2px;
+    background:var(--cell-fill);
+  }
+  .cell.marked{ background:var(--cell-mark-bg); }
+  .cell.marked::before{
+    content:"\00d7";
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--cell-mark-x);
+    font-weight:700;
+    font-size:calc(var(--cell-size) * 0.62);
+    line-height:1;
+  }
+
+  .cell.hl-line{ background:var(--accent-soft); }
+  .cell.wrong{ background:var(--danger-soft) !important; box-shadow:inset 0 0 0 2px var(--danger); }
+
+  .hint-highlight{ background:var(--accent-soft); }
+
+  /* ---------- toast / complete ---------- */
+  .toast{
+    position:fixed;
+    left:50%; top:24px;
+    transform:translate(-50%,-140%);
+    background:var(--panel);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:12px 20px;
+    border-radius:8px;
+    box-shadow:var(--shadow);
+    font-size:14px;
+    font-weight:600;
+    transition:transform .3s ease;
+    z-index:50;
+  }
+  .toast.show{ transform:translate(-50%,0); }
+
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(15,17,22,.45);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100;
+    opacity:0; pointer-events:none;
+    transition:opacity .25s ease;
+  }
+  .overlay.show{ opacity:1; pointer-events:auto; }
+  .modal{
+    background:var(--panel);
+    border-radius:14px;
+    padding:32px 36px;
+    text-align:center;
+    box-shadow:var(--shadow);
+    max-width:320px;
+    transform:scale(.9);
+    transition:transform .25s ease;
+  }
+  .overlay.show .modal{ transform:scale(1); }
+  .modal .emoji{ font-size:40px; margin-bottom:8px; }
+  .modal h2{ margin:0 0 6px; font-size:20px; }
+  .modal p{ margin:0 0 20px; color:var(--sub-text); font-size:14px; }
+
+  .hint-text{
+    text-align:center;
+    color:var(--sub-text);
+    font-size:12px;
+    margin-top:16px;
+  }
+
+  @media (max-width:520px){
+    :root{ --cell-size:22px; }
+    h1{ font-size:17px; }
+    .status-item .value{ font-size:15px; }
+    .board-wrapper{ padding:12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>노노<span>그램</span></h1>
+    <button class="icon-btn" id="theme-toggle" title="다크 모드">🌙</button>
+  </header>
+
+  <div class="controls">
+    <div class="size-select" id="size-select">
+      <button data-size="10" class="active">10×10</button>
+      <button data-size="15">15×15</button>
+      <button data-size="20">20×20</button>
+    </div>
+    <div class="action-buttons">
+      <button class="btn" id="undo-btn">↩ 실행취소</button>
+      <button class="btn danger-outline" id="reset-btn">처음부터</button>
+      <button class="btn primary" id="check-btn">확인</button>
+    </div>
+  </div>
+
+  <div class="board-wrapper">
+    <div id="board-grid"></div>
+  </div>
+
+  <p class="hint-text">좌클릭: 칸 칠하기 · 우클릭: X 표시 · 클릭한 채로 드래그: 여러 칸 한번에 칠하기</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="overlay" id="complete-overlay">
+  <div class="modal">
+    <div class="emoji">🎉</div>
+    <h2>퍼즐 완성!</h2>
+    <p id="complete-time">완료 시간: 00:00</p>
+    <button class="btn primary" id="new-after-complete">새 퍼즐 시작</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   상태 변수
+   ========================================================= */
+let SIZE = 10;                 // 현재 퍼즐 크기
+let solution = [];             // 정답 2차원 boolean 배열 [row][col]
+let state = [];                // 플레이어 상태: 0=빈칸, 1=칠함, 2=X표시
+let rowHints = [];             // 각 행의 힌트 숫자 배열
+let colHints = [];             // 각 열의 힌트 숫자 배열
+let completedRows = [];        // 완료된 행 여부
+let completedCols = [];        // 완료된 열 여부
+
+let isPointerDown = false;     // 드래그 중인지 여부
+let dragButton = 0;            // 0=좌클릭(칠하기), 2=우클릭(X표시)
+let dragTargetValue = 1;       // 드래그로 만들 목표 값(칠하거나 지우거나)
+let currentBatch = [];         // 현재 드래그에서 변경된 셀들(undo용 묶음)
+
+let undoStack = [];            // undo 스택 (각 원소는 batch 배열)
+
+let startTime = null;
+let elapsedMs = 0;
+let timerInterval = null;
+let solved = false;
+
+/* =========================================================
+   퍼즐 생성
+   ========================================================= */
+
+// 랜덤 그림 패턴을 만들고 정답 배열을 반환한다.
+// 완전히 빈 행/열이 없도록 최소한의 보정을 한다.
+function generateSolution(size){
+  const density = 0.5; // 칠해질 확률
+  let grid;
+  let attempts = 0;
+  do{
+    grid = [];
+    for(let r=0;r<size;r++){
+      const row = [];
+      for(let c=0;c<size;c++){
+        row.push(Math.random() < density);
+      }
+      grid.push(row);
+    }
+    attempts++;
+  } while(!isGridReasonable(grid, size) && attempts < 20);
+  return grid;
+}
+
+// 너무 비어있거나 너무 꽉 찬 퍼즐을 걸러내기 위한 간단한 검증
+function isGridReasonable(grid, size){
+  let filled = 0;
+  for(let r=0;r<size;r++){
+    let rowFilled = 0;
+    for(let c=0;c<size;c++){ if(grid[r][c]){ filled++; rowFilled++; } }
+    if(rowFilled === 0 || rowFilled === size) return false; // 완전히 빈/꽉찬 행 방지
+  }
+  const total = size*size;
+  const ratio = filled/total;
+  return ratio > 0.3 && ratio < 0.7;
+}
+
+// 한 줄(행 또는 열)의 boolean 배열에서 연속된 칸의 길이 목록을 계산
+function lineToHints(line){
+  const hints = [];
+  let run = 0;
+  for(const cell of line){
+    if(cell){ run++; }
+    else{
+      if(run>0){ hints.push(run); run=0; }
+    }
+  }
+  if(run>0) hints.push(run);
+  return hints.length ? hints : [0];
+}
+
+// 정답 그리드로부터 모든 행/열 힌트를 계산
+function computeHints(grid, size){
+  const rHints = [];
+  for(let r=0;r<size;r++) rHints.push(lineToHints(grid[r]));
+
+  const cHints = [];
+  for(let c=0;c<size;c++){
+    const col = [];
+    for(let r=0;r<size;r++) col.push(grid[r][c]);
+    cHints.push(lineToHints(col));
+  }
+  return {rHints, cHints};
+}
+
+/* =========================================================
+   퍼즐 초기화 / 새 게임
+   ========================================================= */
+function startNewPuzzle(size){
+  SIZE = size;
+  solution = generateSolution(size);
+  const hints = computeHints(solution, size);
+  rowHints = hints.rHints;
+  colHints = hints.cHints;
+
+  state = [];
+  for(let r=0;r<size;r++) state.push(new Array(size).fill(0));
+
+  completedRows = new Array(size).fill(false);
+  completedCols = new Array(size).fill(false);
+
+  undoStack = [];
+  currentBatch = [];
+  solved = false;
+
+  document.getElementById('board-grid').style.setProperty('--cols', size);
+  renderBoard();
+  updateProgress();
+  resetTimer();
+  startTimer();
+  updateUndoButton();
+}
+
+/* =========================================================
+   보드 렌더링
+   ========================================================= */
+function renderBoard(){
+  const grid = document.getElementById('board-grid');
+  grid.innerHTML = '';
+
+  // 힌트 영역 너비를 위한 최대 힌트 줄 수 계산
+  let maxRowHintLen = 1, maxColHintLen = 1;
+  rowHints.forEach(h => maxRowHintLen = Math.max(maxRowHintLen, h.length));
+  colHints.forEach(h => maxColHintLen = Math.max(maxColHintLen, h.length));
+
+  const cellPx = getComputedStyle(document.documentElement).getPropertyValue('--cell-size').trim();
+  const hintColWidth = Math.max(36, maxRowHintLen * 16 + 12) + 'px';
+  const hintRowHeight = Math.max(30, maxColHintLen * 14 + 10) + 'px';
+
+  grid.style.gridTemplateColumns = `${hintColWidth} repeat(${SIZE}, ${cellPx})`;
+  grid.style.gridTemplateRows = `${hintRowHeight} repeat(${SIZE}, ${cellPx})`;
+
+  // 좌상단 코너
+  const corner = document.createElement('div');
+  corner.className = 'corner';
+  grid.appendChild(corner);
+
+  // 열 힌트
+  for(let c=0;c<SIZE;c++){
+    const div = document.createElement('div');
+    div.className = 'col-hint';
+    if((c+1) % 5 === 0 && c !== SIZE-1) div.classList.add('thick-right');
+    div.dataset.col = c;
+    colHints[c].forEach(n => {
+      const span = document.createElement('span');
+      span.textContent = n === 0 ? '' : n;
+      div.appendChild(span);
+    });
+    grid.appendChild(div);
+  }
+
+  // 행 힌트 + 셀
+  for(let r=0;r<SIZE;r++){
+    const rowHintDiv = document.createElement('div');
+    rowHintDiv.className = 'row-hint';
+    if((r+1) % 5 === 0 && r !== SIZE-1) rowHintDiv.classList.add('thick-bottom');
+    rowHintDiv.dataset.row = r;
+    rowHints[r].forEach(n => {
+      const span = document.createElement('span');
+      span.textContent = n === 0 ? '' : n;
+      rowHintDiv.appendChild(span);
+    });
+    grid.appendChild(rowHintDiv);
+
+    for(let c=0;c<SIZE;c++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      if((c+1) % 5 === 0 && c !== SIZE-1) cell.classList.add('thick-right');
+      if((r+1) % 5 === 0 && r !== SIZE-1) cell.classList.add('thick-bottom');
+      grid.appendChild(cell);
+    }
+  }
+
+  attachBoardEvents();
+  refreshAllCellVisuals();
+  refreshHintStatus();
+}
+
+/* =========================================================
+   셀 시각 갱신
+   ========================================================= */
+function cellEl(r,c){
+  return document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+}
+function rowHintEl(r){ return document.querySelector(`.row-hint[data-row="${r}"]`); }
+function colHintEl(c){ return document.querySelector(`.col-hint[data-col="${c}"]`); }
+
+function refreshAllCellVisuals(){
+  for(let r=0;r<SIZE;r++)
+    for(let c=0;c<SIZE;c++)
+      updateCellVisual(r,c);
+}
+
+function updateCellVisual(r,c){
+  const el = cellEl(r,c);
+  if(!el) return;
+  el.classList.remove('filled','marked','wrong');
+  const v = state[r][c];
+  if(v === 1) el.classList.add('filled');
+  else if(v === 2) el.classList.add('marked');
+}
+
+/* =========================================================
+   같은 행/열 하이라이트 (호버)
+   ========================================================= */
+function highlightLine(r,c,on){
+  document.querySelectorAll(`.cell[data-row="${r}"]`).forEach(el=>el.classList.toggle('hl-line',on));
+  document.querySelectorAll(`.cell[data-col="${c}"]`).forEach(el=>el.classList.toggle('hl-line',on));
+  const rh = rowHintEl(r); if(rh) rh.classList.toggle('hint-highlight', on);
+  const ch = colHintEl(c); if(ch) ch.classList.toggle('hint-highlight', on);
+}
+
+/* =========================================================
+   보드 이벤트 (클릭 / 드래그)
+   ========================================================= */
+function attachBoardEvents(){
+  const grid = document.getElementById('board-grid');
+  grid.oncontextmenu = (e) => e.preventDefault();
+
+  grid.addEventListener('mousedown', onCellPointerDown);
+  grid.addEventListener('mouseover', onCellPointerOver);
+  grid.addEventListener('mouseout', onCellPointerOut);
+  document.addEventListener('mouseup', onPointerUp);
+}
+
+function getCellFromEvent(e){
+  const target = e.target.closest('.cell');
+  if(!target) return null;
+  return { r: parseInt(target.dataset.row), c: parseInt(target.dataset.col) };
+}
+
+function onCellPointerDown(e){
+  const pos = getCellFromEvent(e);
+  if(!pos || solved) return;
+  e.preventDefault();
+  isPointerDown = true;
+  dragButton = e.button; // 0 = 좌클릭, 2 = 우클릭
+  currentBatch = [];
+
+  const cur = state[pos.r][pos.c];
+  if(dragButton === 2){
+    // 우클릭 드래그: X 표시 토글 기준
+    dragTargetValue = (cur === 2) ? 0 : 2;
+  } else {
+    // 좌클릭 드래그: 칠하기 토글 기준
+    dragTargetValue = (cur === 1) ? 0 : 1;
+  }
+  applyCellChange(pos.r, pos.c, dragTargetValue);
+}
+
+function onCellPointerOver(e){
+  const pos = getCellFromEvent(e);
+  if(!pos) return;
+  highlightLine(pos.r, pos.c, true);
+  if(isPointerDown && !solved){
+    applyCellChange(pos.r, pos.c, dragTargetValue);
+  }
+}
+
+function onCellPointerOut(e){
+  const pos = getCellFromEvent(e);
+  if(!pos) return;
+  highlightLine(pos.r, pos.c, false);
+}
+
+function onPointerUp(){
+  if(isPointerDown && currentBatch.length){
+    undoStack.push(currentBatch);
+    updateUndoButton();
+  }
+  isPointerDown = false;
+  currentBatch = [];
+}
+
+// 셀 값 변경 + undo 배치에 기록 + 시각/진행률 갱신
+function applyCellChange(r,c,newValue){
+  const prev = state[r][c];
+  if(prev === newValue) return;
+  state[r][c] = newValue;
+  currentBatch.push({r,c,prev,next:newValue});
+  updateCellVisual(r,c);
+  updateProgress();
+  refreshHintStatus();
+  checkForCompletion();
+}
+
+/* =========================================================
+   실행 취소
+   ========================================================= */
+function undo(){
+  if(!undoStack.length || solved) return;
+  const batch = undoStack.pop();
+  for(let i=batch.length-1;i>=0;i--){
+    const {r,c,prev} = batch[i];
+    state[r][c] = prev;
+    updateCellVisual(r,c);
+  }
+  updateProgress();
+  refreshHintStatus();
+  updateUndoButton();
+}
+function updateUndoButton(){
+  document.getElementById('undo-btn').disabled = undoStack.length === 0;
+}
+
+/* =========================================================
+   완료된 행/열 감지 (힌트 흐리게 처리용)
+   ========================================================= */
+function lineMatchesHint(cellsFilled, hints){
+  const actual = lineToHints(cellsFilled);
+  if(actual.length !== hints.length) return false;
+  for(let i=0;i<actual.length;i++) if(actual[i] !== hints[i]) return false;
+  return true;
+}
+
+function refreshHintStatus(){
+  for(let r=0;r<SIZE;r++){
+    const filled = state[r].map(v => v === 1);
+    const done = lineMatchesHint(filled, rowHints[r]);
+    completedRows[r] = done;
+    const el = rowHintEl(r);
+    if(el) el.classList.toggle('done', done);
+  }
+  for(let c=0;c<SIZE;c++){
+    const filled = [];
+    for(let r=0;r<SIZE;r++) filled.push(state[r][c] === 1);
+    const done = lineMatchesHint(filled, colHints[c]);
+    completedCols[c] = done;
+    const el = colHintEl(c);
+    if(el) el.classList.toggle('done', done);
+  }
+}
+
+/* =========================================================
+   진행률
+   ========================================================= */
+function updateProgress(){
+  let totalFilled = 0, correctFilled = 0;
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      if(solution[r][c]) totalFilled++;
+      if(solution[r][c] && state[r][c] === 1) correctFilled++;
+    }
+  }
+  const pct = totalFilled === 0 ? 0 : Math.round((correctFilled/totalFilled)*100);
+  const fillEl = document.getElementById('progress-fill');
+  const valEl = document.getElementById('progress-value');
+  if(fillEl) fillEl.style.width = pct + '%';
+  if(valEl) valEl.textContent = pct + '%';
+}
+
+/* =========================================================
+   완성 여부 체크
+   ========================================================= */
+function checkForCompletion(){
+  if(solved) return;
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      const shouldFill = solution[r][c];
+      const isFilled = state[r][c] === 1;
+      if(shouldFill !== isFilled) return; // 아직 미완성
+    }
+  }
+  solved = true;
+  stopTimer();
+  showCompleteModal();
+}
+
+/* =========================================================
+   체크 버튼: 틀린 칸 임시 표시
+   ========================================================= */
+function checkPuzzle(){
+  if(solved) return;
+  let wrongCount = 0;
+  const wrongCells = [];
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      if(state[r][c] === 1 && !solution[r][c]){
+        wrongCells.push([r,c]);
+        wrongCount++;
+      }
+    }
+  }
+  wrongCells.forEach(([r,c]) => {
+    const el = cellEl(r,c);
+    if(el) el.classList.add('wrong');
+  });
+  setTimeout(()=>{
+    wrongCells.forEach(([r,c]) => {
+      const el = cellEl(r,c);
+      if(el) el.classList.remove('wrong');
+    });
+  }, 1200);
+
+  if(wrongCount === 0){
+    showToast('지금까지는 모두 정확해요!');
+  } else {
+    showToast(`틀린 칸 ${wrongCount}개를 찾았어요`);
+  }
+}
+
+/* =========================================================
+   리셋
+   ========================================================= */
+function resetPuzzle(){
+  if(!solution.length) return;
+  state = [];
+  for(let r=0;r<SIZE;r++) state.push(new Array(SIZE).fill(0));
+  undoStack = [];
+  currentBatch = [];
+  solved = false;
+  refreshAllCellVisuals();
+  refreshHintStatus();
+  updateProgress();
+  updateUndoButton();
+  resetTimer();
+  startTimer();
+  showToast('처음부터 다시 시작해요');
+}
+
+/* =========================================================
+   타이머
+   ========================================================= */
+function startTimer(){
+  startTime = Date.now() - elapsedMs;
+  clearInterval(timerInterval);
+  timerInterval = setInterval(()=>{
+    elapsedMs = Date.now() - startTime;
+    const timerEl = document.getElementById('timer');
+    if(timerEl) timerEl.textContent = formatTime(elapsedMs);
+  }, 250);
+}
+function stopTimer(){
+  clearInterval(timerInterval);
+}
+function resetTimer(){
+  elapsedMs = 0;
+  const timerEl = document.getElementById('timer');
+  if(timerEl) timerEl.textContent = '00:00';
+}
+function formatTime(ms){
+  const totalSec = Math.floor(ms/1000);
+  const m = String(Math.floor(totalSec/60)).padStart(2,'0');
+  const s = String(totalSec%60).padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+/* =========================================================
+   토스트 / 완성 모달
+   ========================================================= */
+let toastTimeout = null;
+function showToast(msg){
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(()=> toast.classList.remove('show'), 1800);
+}
+
+function showCompleteModal(){
+  document.getElementById('complete-time').textContent = `완료 시간: ${formatTime(elapsedMs)}`;
+  document.getElementById('complete-overlay').classList.add('show');
+}
+function hideCompleteModal(){
+  document.getElementById('complete-overlay').classList.remove('show');
+}
+
+/* =========================================================
+   다크 모드
+   ========================================================= */
+function toggleDarkMode(){
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('theme-toggle').textContent = isDark ? '🌙' : '☀️';
+}
+
+/* =========================================================
+   이벤트 바인딩
+   ========================================================= */
+document.getElementById('size-select').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#size-select button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  startNewPuzzle(parseInt(btn.dataset.size));
+});
+
+document.getElementById('check-btn').addEventListener('click', checkPuzzle);
+document.getElementById('reset-btn').addEventListener('click', resetPuzzle);
+document.getElementById('undo-btn').addEventListener('click', undo);
+document.getElementById('theme-toggle').addEventListener('click', toggleDarkMode);
+document.getElementById('new-after-complete').addEventListener('click', ()=>{
+  hideCompleteModal();
+  const activeSize = document.querySelector('#size-select button.active').dataset.size;
+  startNewPuzzle(parseInt(activeSize));
+});
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'z' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); undo(); }
+});
+
+/* =========================================================
+   초기 실행
+   ========================================================= */
+startNewPuzzle(SIZE);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+/html/body/div/div/div/div/span/a...
+//*[@id="login"]
+
+xpath는 브라우저가 자동으로 완성
+
+/html/body/div[2]/div[3]/div[2]/div[2]/div/div/div[1]/div/a
+=> 네이버에서 얻은 XPath 경로
+
