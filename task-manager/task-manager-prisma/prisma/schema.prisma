@@ -1,0 +1,290 @@
+// Task Manager database schema
+// Target: Prisma ORM 7.x + PostgreSQL
+// Connection URL is configured in prisma.config.ts.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  runtime         = "nodejs"
+  moduleFormat    = "esm"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider     = "postgresql"
+  relationMode = "foreignKeys"
+}
+
+enum ProjectStatus {
+  PLANNED
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id           String   @id(map: "users_pkey") @default(uuid()) @db.Uuid
+  email        String   @unique(map: "users_email_key") @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  displayName  String   @map("display_name") @db.VarChar(50)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  categories          Category[]
+  projects            Project[]
+  tags                Tag[]
+  timeRecords         TimeRecord[]
+  notificationSetting NotificationSetting?
+
+  @@map("users")
+}
+
+model Category {
+  id          String   @id(map: "categories_pkey") @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  name        String   @db.VarChar(50)
+  slug        String   @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  icon        String?  @db.VarChar(50)
+  color       String?  @db.VarChar(7)
+  isActive    Boolean  @default(true) @map("is_active")
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "categories_user_id_fkey")
+  projects Project[]
+
+  @@unique([userId, slug], map: "categories_user_id_slug_key")
+  @@index([userId, isActive, position], map: "categories_user_active_position_idx")
+  @@map("categories")
+}
+
+model Project {
+  id          String        @id(map: "projects_pkey") @default(uuid()) @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  categoryId  String        @map("category_id") @db.Uuid
+  title       String        @db.VarChar(100)
+  description String?       @db.Text
+  status      ProjectStatus @default(PLANNED)
+  priority    Priority      @default(MEDIUM)
+  startDate   DateTime?     @map("start_date") @db.Date
+  dueDate     DateTime?     @map("due_date") @db.Date
+  isArchived  Boolean       @default(false) @map("is_archived")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "projects_user_id_fkey")
+  category    Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "projects_category_id_fkey")
+  milestones  Milestone[]
+  tasks       Task[]
+  timeRecords TimeRecord[]
+  notes       Note[]
+  files       ProjectFile[]
+  projectTags ProjectTag[]
+
+  @@index([userId, isArchived, updatedAt(sort: Desc)], map: "projects_user_archived_updated_idx")
+  @@index([userId, status], map: "projects_user_status_idx")
+  @@index([userId, categoryId], map: "projects_user_category_idx")
+  @@index([userId, dueDate], map: "projects_user_due_date_idx")
+  @@index([categoryId], map: "projects_category_id_idx")
+  @@map("projects")
+}
+
+model Milestone {
+  id          String          @id(map: "milestones_pkey") @default(uuid()) @db.Uuid
+  projectId   String          @map("project_id") @db.Uuid
+  title       String          @db.VarChar(100)
+  description String?         @db.Text
+  status      MilestoneStatus @default(PLANNED)
+  dueDate     DateTime?       @map("due_date") @db.Date
+  position    Int             @default(0)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "milestones_project_id_fkey")
+  tasks   Task[]
+
+  @@index([projectId, position], map: "milestones_project_position_idx")
+  @@index([projectId, status], map: "milestones_project_status_idx")
+  @@index([projectId, dueDate], map: "milestones_project_due_date_idx")
+  @@map("milestones")
+}
+
+model Task {
+  id               String     @id(map: "tasks_pkey") @default(uuid()) @db.Uuid
+  projectId        String     @map("project_id") @db.Uuid
+  milestoneId      String?    @map("milestone_id") @db.Uuid
+  parentTaskId     String?    @map("parent_task_id") @db.Uuid
+  title            String     @db.VarChar(150)
+  description      String?    @db.Text
+  status           TaskStatus @default(TODO)
+  priority         Priority   @default(MEDIUM)
+  startDate        DateTime?  @map("start_date") @db.Date
+  dueDate          DateTime?  @map("due_date") @db.Date
+  estimatedMinutes Int?       @map("estimated_minutes")
+  position         Int        @default(0)
+  completedAt      DateTime?  @map("completed_at") @db.Timestamptz(3)
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "tasks_project_id_fkey")
+  milestone   Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "tasks_milestone_id_fkey")
+  parentTask  Task?        @relation("TaskHierarchy", fields: [parentTaskId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "tasks_parent_task_id_fkey")
+  subtasks    Task[]       @relation("TaskHierarchy")
+  timeRecords TimeRecord[]
+  notes       Note[]
+  taskTags    TaskTag[]
+
+  @@index([projectId, parentTaskId, position], map: "tasks_project_parent_position_idx")
+  @@index([projectId, status], map: "tasks_project_status_idx")
+  @@index([projectId, milestoneId], map: "tasks_project_milestone_idx")
+  @@index([milestoneId], map: "tasks_milestone_id_idx")
+  @@index([parentTaskId], map: "tasks_parent_task_id_idx")
+  @@index([projectId, dueDate], map: "tasks_project_due_date_idx")
+  @@index([projectId, completedAt], map: "tasks_project_completed_at_idx")
+  @@map("tasks")
+}
+
+model Tag {
+  id             String   @id(map: "tags_pkey") @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  name           String   @db.VarChar(50)
+  normalizedName String   @map("normalized_name") @db.VarChar(50)
+  color          String?  @db.VarChar(7)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "tags_user_id_fkey")
+  projectTags ProjectTag[]
+  taskTags    TaskTag[]
+
+  @@unique([userId, normalizedName], map: "tags_user_normalized_name_key")
+  @@index([userId, name], map: "tags_user_name_idx")
+  @@map("tags")
+}
+
+model TimeRecord {
+  id              String    @id(map: "time_records_pkey") @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  projectId       String    @map("project_id") @db.Uuid
+  taskId          String?   @map("task_id") @db.Uuid
+  startedAt       DateTime  @map("started_at") @db.Timestamptz(3)
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(3)
+  durationMinutes Int?      @map("duration_minutes")
+  description     String?   @db.VarChar(500)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "time_records_user_id_fkey")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "time_records_project_id_fkey")
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "time_records_task_id_fkey")
+
+  // A user can have only one active timer (ended_at IS NULL).
+  @@unique([userId], where: raw("\"ended_at\" IS NULL"), map: "time_records_one_active_per_user_key")
+  @@index([userId, startedAt(sort: Desc)], map: "time_records_user_started_idx")
+  @@index([projectId, startedAt(sort: Desc)], map: "time_records_project_started_idx")
+  @@index([taskId, startedAt(sort: Desc)], map: "time_records_task_started_idx")
+  @@map("time_records")
+}
+
+model Note {
+  id        String   @id(map: "notes_pkey") @default(uuid()) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  taskId    String?  @map("task_id") @db.Uuid
+  title     String   @db.VarChar(100)
+  content   String   @db.Text
+  isPinned  Boolean  @default(false) @map("is_pinned")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "notes_project_id_fkey")
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "notes_task_id_fkey")
+
+  @@index([projectId, isPinned, updatedAt(sort: Desc)], map: "notes_project_pinned_updated_idx")
+  @@index([taskId, updatedAt(sort: Desc)], map: "notes_task_updated_idx")
+  @@map("notes")
+}
+
+model ProjectFile {
+  id           String   @id(map: "project_files_pkey") @default(uuid()) @db.Uuid
+  projectId    String   @map("project_id") @db.Uuid
+  originalName String   @map("original_name") @db.VarChar(255)
+  storageKey   String   @unique(map: "project_files_storage_key_key") @map("storage_key") @db.VarChar(500)
+  mimeType     String   @map("mime_type") @db.VarChar(255)
+  sizeBytes    Int      @map("size_bytes")
+  description  String?  @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "project_files_project_id_fkey")
+
+  @@index([projectId, createdAt(sort: Desc)], map: "project_files_project_created_idx")
+  @@map("project_files")
+}
+
+model NotificationSetting {
+  id                     String   @id(map: "notification_settings_pkey") @default(uuid()) @db.Uuid
+  userId                 String   @unique(map: "notification_settings_user_id_key") @map("user_id") @db.Uuid
+  emailEnabled           Boolean  @default(true) @map("email_enabled")
+  pushEnabled            Boolean  @default(false) @map("push_enabled")
+  dueDateReminderEnabled Boolean  @default(true) @map("due_date_reminder_enabled")
+  dueDateReminderMinutes Int      @default(1440) @map("due_date_reminder_minutes")
+  dailySummaryEnabled    Boolean  @default(false) @map("daily_summary_enabled")
+  dailySummaryTime       String   @default("20:00") @map("daily_summary_time") @db.VarChar(5)
+  timezone               String   @default("Asia/Seoul") @db.VarChar(100)
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "notification_settings_user_id_fkey")
+
+  @@map("notification_settings")
+}
+
+model ProjectTag {
+  projectId String   @map("project_id") @db.Uuid
+  tagId     String   @map("tag_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "project_tags_project_id_fkey")
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "project_tags_tag_id_fkey")
+
+  @@id([projectId, tagId], map: "project_tags_pkey")
+  @@index([tagId], map: "project_tags_tag_id_idx")
+  @@map("project_tags")
+}
+
+model TaskTag {
+  taskId    String   @map("task_id") @db.Uuid
+  tagId     String   @map("tag_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "task_tags_task_id_fkey")
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "task_tags_tag_id_fkey")
+
+  @@id([taskId, tagId], map: "task_tags_pkey")
+  @@index([tagId], map: "task_tags_tag_id_idx")
+  @@map("task_tags")
+}
