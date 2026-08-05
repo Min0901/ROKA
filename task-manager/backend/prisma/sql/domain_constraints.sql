@@ -3,8 +3,7 @@
 -- Recommended workflow:
 -- 1. Generate the initial migration:
 --      npx prisma migrate dev --name init --create-only
--- 2. Append this file to the generated migration.sql, or apply it as a second
---    manually-created migration after the tables have been created.
+-- 2. Append this file to the generated initial migration.sql.
 -- 3. Run:
 --      npx prisma migrate dev
 --
@@ -105,7 +104,6 @@ ALTER TABLE "notification_settings"
 
 -- ---------------------------------------------------------------------------
 -- Project ↔ Category ownership
--- Ensures a project cannot reference another user's category.
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION validate_project_category_owner()
@@ -144,10 +142,6 @@ EXECUTE FUNCTION validate_project_category_owner();
 
 -- ---------------------------------------------------------------------------
 -- Task hierarchy and Task ↔ Milestone project consistency
--- - parent task must be in the same project
--- - hierarchy depth is limited to one subtask level
--- - a task with children cannot be moved under another task
--- - milestone must be in the same project
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION validate_task_relations()
@@ -229,8 +223,6 @@ ON "tasks"
 FOR EACH ROW
 EXECUTE FUNCTION validate_task_relations();
 
--- Prevent converting an existing parent into a subtask by updating the child
--- hierarchy in a way that bypasses the row being updated.
 CREATE OR REPLACE FUNCTION prevent_grandchild_tasks()
 RETURNS trigger
 LANGUAGE plpgsql
